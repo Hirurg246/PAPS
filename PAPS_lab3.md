@@ -5,234 +5,210 @@
 ### Приложение на терминале
 
 ## Диаграмма последовательностей
-Выберем use case "Осуществить доступ к системам умного здания"
+Выберем use case "Осуществить доступ к системам умного здания". На диаграмме последовательности раскроем контейнер "Приложение на терминале", а все остальные опишем как неделимые.
 
 В диаграмме показан процесс получения доступа пользователем к системе умного здания. Каждая передача сообщения между модулями системы, начиная с обработчика запросов сопровождается операциями шифровки/расшифровки данных сообщения.
 ## Модель хранилища данных
 
-Хранилище данных состоит из базы данных в 3НФ и участка файловой системы сервера. БД хранит сущности предметной области, а файловая система - большие файлы, ссылки на которые хранятся в БД. Модель сделана максимально изолированной, так как разрабатывается часть системы безопасности.
+Хранилище данных состоит из базы данных в 3НФ и участка файловой системы сервера. БД хранит сущности предметной области, а файловая система - большие файлы, ссылки на которые хранятся в БД. Модель сделана максимально изолированной, так как разрабатывается как часть системы безопасности.
 ## Применение основных принципов разработки
 ### KISS (Keep It Simple, Stupid)
-Код должен делать ровно то что ожидаешь, быть простым и понятным.
+Код должен делать ровно то что от него ожидается, быть простым и понятным. Класс ниже управляет существованием терминалов, позволяя создавать и удалять их и ничего более.
 ```csharp
-export class BoardManager {
-    project: Project;
-    boards: { [key: number]: Board } = {};
-
-    createBoard(title: string): Board {
-        const board = new Board(title);
-        this.boards[title] = board;
-        return board;
+static class TerminalManager
+{
+    public static IndexedHashSet<Terminal> Terminals = [];
+    public static Terminal CreateTerminal(Room room)
+    {
+        Terminal terminal = new Terminal(Terminals.GetNextId());
+        Terminals.Add(terminal);
+        room.AddTerminal(terminal);
+        return terminal;
     }
-    deleteBoard(id: number): boolean {
-        if (this.boards[id]) {
-            delete this.boards[id];
-            return true;
+
+    public static int DeleteTerminal(int id)
+    {
+        Terminal terminal = Terminals.PopById(id);
+        if (terminal is not null)
+        {
+            terminal.Room.RemoveTerminal(terminal);
+            return 1;
         }
-        return false;
+        return 0;
     }
 }
 ```
-BoardManager делает ровно то что ожидаешь - создает и удаляет доски из проекта, код написан просто и понятно.
-### YAGNI (You Aren't Gonna Need It)
-Не реализовывать то, в чьей надобности ты не уверен.
-```ts
-export class Board {
-    title: string;
-    elements: Renderable[];
+### YAGNI (You Ain’t Gonna Need It)
+Реализовывать только то, что нужно текущей итерации проекта, не забегать вперёд. Класс ниже может быть расширен, если бы я реализовывал удалённое управление терминалами. Так как такой задачи пока не стоит - заготовки методов управления отсутствуют и класс содержит только описание физического объекта и его переносимость между комнатами.
+```charp
+class Terminal: IMoveable
+{
+    public int Id;
+    public Room Room;
+    public int Status;
 
-    constructor(title: string) {
-        this.title = title;
+    public Terminal(int id)
+    {
+        Id = id;
+        Status = 0;
     }
-
-    addElement(element: Renderable) {
-        this.elements.push(element);
-    }
-
-    removeElement(element: Renderable) {
-        this.elements = this.elements.filter(e => e !== element);
+    public void Move(Room newRoom)
+    {
+        Room = newRoom;
     }
 }
 ```
-На данный момент, класс доски имеет такое простое наполнение наполнение - создание и удаление элементов, а также доске можно задать её название. Никаких ненужных абстракций, никакого лишнего кода.
 ### DRY (Don't Repeat Yourself)
-Стараться писать максимально переиспользуемый код.
-```ts
-board.addElement(new TextElement(0, 0, 100, 200, "Первая идея", 14))
-board.addElement(new TextElement(200, 200, 100, 200, "Вторая идея", 14))
+Стараться писать максимально переиспользуемый код. Вынесение повторяющегося кода в отдельную функцию воплощает данный принцип. В данном случае мы заменили 6 повторяющихся строк кода двумя вызовами функции.
+```csharp
+Terminal terminal1 = TerminalManager.CreateTerminal(room1);
+Terminal terminal2 = TerminalManager.CreateTerminal(room2);
 ```
-В принципе, любое применение функции больше одного раза - уже воплощение принципа DRY. В данном случае мы добавляем два элемента, и используем для этого одну функцию в классе Board.
 ### SOLID
 #### S - Single Responsibility Principle (Принцип единственной ответственности)
-Каждый класс/метод/переменная/... имеет лишь одну функцию или ответственность. Реализовывать класс, объединяющий функции и швеца, и жнеца, и на дуде игреца - очень плохая идея.
-```ts
-export class BoardManager {
-    project: Project;
-    boards: { [key: number]: Board } = {};
-
-    createBoard(title: string): Board {
-        const board = new Board(title);
-        this.boards[title] = board;
-        return board;
+Каждый объект кода должен иметь лишь одну функцию или ответственность. Не нужно пытаться создать суперкласс реализующий все функции одновременно. Как уже было сказано, класс ниже управляет существованием терминалов, позволяя создавать и удалять их и ничего более.
+```csharp
+static class TerminalManager
+{
+    public static IndexedHashSet<Terminal> Terminals = [];
+    public static Terminal CreateTerminal(Room room)
+    {
+        Terminal terminal = new Terminal(Terminals.GetNextId());
+        Terminals.Add(terminal);
+        room.AddTerminal(terminal);
+        return terminal;
     }
-    deleteBoard(id: number): boolean {
-        if (this.boards[id]) {
-            delete this.boards[id];
-            return true;
+
+    public static int DeleteTerminal(int id)
+    {
+        Terminal terminal = Terminals.PopById(id);
+        if (terminal is not null)
+        {
+            terminal.Room.RemoveTerminal(terminal);
+            return 1;
         }
-        return false;
+        return 0;
     }
 }
 ```
-BoardManager отвечает только за управление досками в проекте, больше ни за что.
 #### O - Open/Closed Principle (Принцип открытости/закрытости)
-Классы открыты для расширения, но закрыты для модификации.
-```ts
-abstract class BoardElement {
-    protected x: number;
-    protected y: number;
-    protected width: number;
-    protected height: number;
+Классы открыты для расширения, но закрыты для модификации. Дочерние классы добавляет свой специфический функционал, но не модифицирует базовое поведение класса. В примере объекты дочерних классов получают свой уникальный функционал, но всё ещё должны выдавать журнал доступа к ним
+```csharp
+abstract class SecurityObject
+{
+    protected int id;
+    protected Room room;
 
-    constructor(x: number, y: number, width: number, height: number) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
+    public SecurityObject(int id, Room room)
+    {
+        this.id = id;
+        this.room = room;
     }
-    abstract render(): void;
-    abstract resize(width: number, height: number): void;
-    abstract move(x: number, y: number): void;
+
+    public abstract AccessJournal GetAccessJournal();
 }
 
-class ImageElement extends BoardElement {
-    private imageUrl: string;
+abstract class AccessJournal
+{...}
 
-    constructor(x: number, y: number, width: number, height: number, imageUrl: string) {
-        super(x, y, width, height);
-        this.imageUrl = imageUrl;
+class LockAccessJournal: AccessJournal
+{...}
+
+class CameraAccessJournal : AccessJournal
+{...}
+
+class Lock: SecurityObject
+{
+    protected Room nextRoom;
+
+    public Lock(int id, Room room, Room nextRoom) : base(id, room)
+    {
+        this.nextRoom = nextRoom;
     }
 
-    render(): void {
-        //Отрисовка изображения по URL
+    public void Open()
+    {
+        //Открыть замок
     }
 
-    resize(width: number, height: number): void {
-        this.width = width;
-        this.height = height;
+    public void Close()
+    {
+        //Закрыть замок
     }
 
-    move(x: number, y: number): void {
-        this.x = x;
-        this.y = y;
+    public override LockAccessJournal GetAccessJournal()
+    {
+        //Получить журнал доступа к замку
     }
 }
 
-class TextElement extends BoardElement {
-    private text: string;
-    private fontSize: number;
+class Camera : SecurityObject, IMoveable
+{
+    protected Position position;
 
-    constructor(x: number, y: number, width: number, height: number, text: string, fontSize: number) {
-        super(x, y, width, height);
-        this.text = text;
-        this.fontSize = fontSize;
+    public Camera(int id, Room room) : base(id, room)
+    {
+        this.position = Position.StartingPosition;
     }
 
-    render(): void {
-        //Отрисовка текста
+    public void ChangePosition(Position newPosition)
+    {
+        //Меняем положение
+        this.position = newPosition;
     }
 
-    resize(width: number, height: number): void {
-        this.width = width;
-        this.height = height;
+    public override CameraAccessJournal GetAccessJournal()
+    {
+        //Получить журнал доступа
     }
-
-    changeFontSize(size: number): void {
-        this.fontSize = size;
-        console.log(`Размер шрифта изменен на: ${this.fontSize}`);
-    }
-
-    move(x: number, y: number): void {
-        this.x = x;
-        this.y = y;
-    }
-} 
+}
 ```
-В данном случае у нас есть абстрактный класс BoardElement, от которого наследуются два дочерних класса - ImageElement и TextElement. Каждый класс добавляет свой специфический функционал, но не модифицирует базовое поведение класса.
 #### L - Liskov Substitution Principle (Принцип подстановки Лисков)
-Объекты дочерних классов должны быть взаимозаменяемыми с объектами родительского класса без изменения правильности программы.
-```ts
-const image = new ImageElement(10, 10, 100, 100, "https://example.com/image.jpg");
-const text = new TextElement(20, 20, 200, 50, "Привет, мир!", 16);
-...
-const elements: BoardElement[] = [image, text];
-elements.forEach(element => element.render()); 
-```
-Например, так как реализуется Open/Closed Principle, мы можем объекты различных дочерних классов группировать в один массив/список, и вызывать функции общего родительского класса. Какие бы мы не добавляли новые подклассы BoardElement, общий функционал будет работать. 
+Объекты дочерних классов должны быть взаимозаменяемыми с объектами родительского класса без изменения правильности программы. Реализация OCP даёт возможность сгруппировать объекты разных классов в один список и вызывать для каждого из них функции общего родительского класса. Новые подклассы также смогут войти в этот список без потери родительского функционала. В примере мы добавляем в архив различные виды журналов доступа от объектов дочерних классов.
+```csharp
+Camera camera1 = CameraManager.CreateCamera(room1);
+Lock lock1 = LockManager.CreateLock(room1, room2);
+List<SecurityObject> securityObjects = new List<SecurityObject> { camera1, lock1 };
+//Прошло время
+foreach (SecurityObject so in securityObjects) AccessArchive.Add(so.GetAccessJournal());
+``` 
 #### I - Interface Segregation Principle (Принцип разделения интерфейса)
-В коде не должно быть бесполезных интерфейсов, которые не используются в данном контексте.
-```ts
-interface Renderable {
-    render(): void;
+Класс не должен иметь нереализованных интерфейсов, а только те которые ему действительно нужны. Тогда программист будет точно знать что объекты класса могут делать. В примере мы применяем интерфейс IMoveable к камере, но не замку, так как камеру можно перенести из комнаты в комнату, а замок зафиксирован в одной двери.
+```csharp
+interface IMoveable
+{
+    public void Move(Room newRoom);
 }
-interface Resizable {
-    resize(width: number, height: number): void;
-}
-interface Movable {
-    move(x: number, y: number): void;
-}
-```
-Например, реализуем два интерфейса - Renderable, Resizable и Movable. Тогда BoardElement будет имплементировать эти интерфейсы. Однако же, если мы хотим только выводить какой-то элемент на экран, но не давать пользователю возможность его изменять и передвигать, то для этого нового класса будем имплементировать только лишь Renderable. Например, сделаем класс кнопки для пользовательского интерфейса.
-```ts
-abstract class BoardElement implements Renderable, Resizable, Movable {
-...
-}
-class Button implements Renderable {
-    render(): void {
-        //Отрисовка кнопки
+class Camera : SecurityObject, IMoveable
+{
+    ...
+    public void Move(Room newRoom)
+    {
+        room = newRoom;
     }
 }
+class Lock: SecurityObject
+{...}
 ```
-Таким образом, тем, кто будет работать над кодом в дальнейшем, будут точно знать, какая функциональность у каких элементов есть.
 #### D - Dependency Inversion Principle (Принцип инверсии зависимостей)
-Высокоуровневые модули не должны зависить от имплементации нижнеуровневых модулей. Они должны зависеть и работать от абстракций, оставляя реализацию и прочие детали за скобками.
-```ts
-const board = new Board();
-const myButton = new Button("Нажми меня", 100, 200);
-const myTextElement = new TextElement(0, 0, 100, 200, "Текст", 14);
-board.addElement(myButton);
-board.addElement(myTextElement);
-board.renderElements(); 
+Высокоуровневые модули не должны зависить от имплементации нижнеуровневых модулей. Они должны зависеть и работать от абстракций, оставляя реализацию и прочие детали за скобками. В примере AccessJournalCrossAnalyzer не важно какие типы объектов системы безопасности поступили в него. Перекрёстный анализ пользователей состоится для любых дочерних классов SecurityObject.
+```csharp
+Camera camera1 = CameraManager.CreateCamera(room1);
+Lock lock1 = LockManager.CreateLock(room1, room2);
+//Прошло время
+AccessJournalCrossAnalyzer ajAnalyzer = new AccessJournalCrossAnalyzer { camera1, lock1 };
+var result = ajAnalyzer.CrossAnalyze();
 ```
-Board не имеет ни малейшего понятия, как именно работают элементы в списке elements. Главное - что они имплементируют интерфейс Renderable, а значит, что он может без боязни вызывать метод render у них, ведь достоверно известно, что все элементы его реализуют.
-
 ## Дополнительные принципы разработки
 ### BDUF. Big design up front («Масштабное проектирование прежде всего»)
-**BDUF** - принцип, по которому необходимо сначала максимально продумать и спроектировать все части системы, перед началом её реализации. Это именно тот принцип, который пытались нам вдолбить в головы все 4 года учёбы на Программного Инженера, но который успешно игнорировался. На 4 же курсе, теперь история совсем иная. Лично я еще не написал ни единой строчки кода для диплома, но при этом у нас есть куча предметов, по которым мы проектируем свой дипломный проект (Управление программными проектами, Проектирование архитектуры программных систем, Научно исследовательский семинар). Так что, можно сказать, что уж в этом году мы его полностью реализуем.
-
-Как итог:
-Принцип BDUF в разработке мы **используем**
-### SoC. Separation оf concerns (принцип разделения ответственности)
-**SoC** - если выражаться более поэтично, это принцип "Разделяй и властвуй". То есть, разбить единую систему (Монолит), на более мелкие куски, логические блоки. Этот принцип реализуется, в частности, в MVC (Model-View-Controller) и в Микросервисной архитектуре. Соответственно, во время выполнения диплома, я конечно же буду придерживаться такого разделения. Это здоровая практика разработки.
-
-Как итог:
-Принцип SoC в разработке мы **используем**
-### MVP. Minimum viable product (минимально жизнеспособный продукт)
-**MVP** - минимальный пример проекта, имеющий лишь только базовый функционал, но при этом всё равно имеющий ценность для пользователя - то есть, фактически, это хоть и плохой, но все таки продукт. 
-Честно говоря, чаще всего, не всегда получается курсовую/дипломную работу довести до степени MVP. Иногда она остаётся на уровне PoC, и либо дорабатывается в следующем году, либо так и остается гнить недоделанной в анналах GitHub.
-
-Все же, вот следующие признаки, из-за которых наши работы можно назвать MVP:
-- Минимальное количество тестирования
-- Сырая кодовая база, слепленная абы как (лично у меня так)
-- Есть ценность, которая реализует тему курсовой
-
-Как итог:
-Принцип MVP в разработке мы **используем**
-  
-### PoC. Proof of concept (доказательство концепции)
-**PoC** - минимальное доказательство концепции будущего продукта. Это именно, что доказательство, а не полноценный продукт. Это грязные, неотточенные и неоттестированные куски кода, кое-как слепленные воедино, служащие для одного - доказать себе, или посторонним лицам, что какая-то идея может сработать, если развить её до полноценного продукта. От MVP он отличается тем, что PoC не обязательно реализовывать все сценарии использования пользователем. Да PoC может быть даже интерактивным макетом в Figma. Главное - иметь ясную цель, или теорию, по проверке которой мы делаем PoC.
-
-Учитывая раннее сказанное, про то что некоторые наши курсовые/дипломные работы остаются в стадии PoC, можно с уверенностью сказать, что иногда мы этот концепт используем, хоть и не нарочно. Если же говорить именно про PoC, чтобы от него перейти к MVP - такое редко случалось. Так как цена ошибки у нас низка (На весь цикл разработки проекта выделяется максимум 9 месяцев, "продавать" продукт мы будем только научному руководителю и комиссии), то и проверять концепции нам не приходится - если что-то не так, то не страшно.
-
-Как итог:
-Принцип PoC в разработке мы **не используем**
+**BDUF** - принцип, предлагающий "думать перед тем как прыгать", а именно планировать разработку в деталях до начала непосредственного написания кода. Лично я пользовался этим принципом с первого курса, когда мой научный руководитель сказал "Убери свой код, просто покажи что он должен делать". В личных проектах как этот применение принципа очень удобно, так как разработка ведётся одним человеком от начала до конца и сложенная в голове концепция может быть полностью перенесена "на бумагу". Писать код после построения архитектуры всё равно что заполнять детскую раскраску.
+Принцип BDUF в разработке я **использую**.
+### SoC. Separation оf concerns (Принцип разделения ответственности)
+**SoC** - принцип, предлагающий разбить систему на логические компоненты, которые можно реализовать и протестировать независимо. Учитывая выбор архитектуры "модульный монолит", система и так разбивается на связанные, но независимые модули, реализуя данный принцип. В дополнение, система безопасности никак не может опираться на систему, которая "умирает вся и сразу".
+Принцип SoC в разработке я **использую**.
+### MVP. Minimum viable product (Минимально жизнеспособный продукт)
+**MVP** - проект, имеющий лишь только базовый функционал, но при этом имеющий ценность для пользователя. Таким образом, его уже можно развернуть на практике, если не думать о возможных последствиях. Учитывая слабую протестированность и отсутствие крутых фич, система будет падать, а пользователи вопрошать зачем они её установили. Тем не менее, в требованиях к моему диплому значится разработка именно MVP, так что отделаться описанным ниже PoC не получится. Желать большего также сложно, поскольку для моей системы сложно даже найти место полноценного развёртывания.
+Принцип MVP в разработке я **использую**.
+### PoC. Proof of concept (Доказательство концепции)
+**PoC** - ситуация, когда рисунок ключа складывают в бумажный ключ. Итоговая система служит только для того чтобы показать, что время было проведено не зря, у системы есть шанс на реальную реализацию. Где-то далеко. По сути это даже не система, а набор разрозненных функций, работающих хоть через консоль. Личные проекты часто остаются в этой стадии из-за нехватки энтузиазма. Тем не менее дипломная работа требует большей серьёзности подхода, чем "это можно сделать (наверное, может нет)". 
+Принцип PoC в разработке мы я **не использую**.
